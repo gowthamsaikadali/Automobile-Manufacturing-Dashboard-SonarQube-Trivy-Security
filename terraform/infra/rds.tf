@@ -49,7 +49,7 @@ resource "aws_db_instance" "mysql" {
   vpc_security_group_ids = [aws_security_group.rds_sg.id]
   publicly_accessible    = false
 
-  backup_retention_period   = 7
+  backup_retention_period   = 0
   deletion_protection       = true
   skip_final_snapshot       = false
   final_snapshot_identifier = "${var.project}-mysql-final"
