@@ -9,8 +9,17 @@ output "cicd_role_arn" {
 }
 
 output "app_pod_role_arn" {
-  value       = var.eks_oidc_provider_arn != "" ? aws_iam_role.app_pod_role[0].arn : ""
-  description = "Set this as the GitHub Actions repo variable APP_POD_ROLE_ARN (populated once eks_oidc_provider_arn is set)"
+  value       = aws_iam_role.app_pod_role.arn
+  description = "Set this as the GitHub Actions repo variable APP_POD_ROLE_ARN"
+}
+
+output "eks_cluster_name" {
+  value       = aws_eks_cluster.main.name
+  description = "Pass to `aws eks update-kubeconfig --name <this>`"
+}
+
+output "vpc_id" {
+  value = aws_vpc.main.id
 }
 
 output "waf_web_acl_arn" {

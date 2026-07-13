@@ -6,17 +6,21 @@ variable "project" {
   default = "autoforge"
 }
 
-variable "vpc_id" {
-  description = "Existing VPC ID (from your network stage)"
-  type        = string
+variable "node_instance_type" {
+  description = "EKS worker node instance type"
+  default     = "t3.small"
 }
 
-variable "public_subnet_ids" {
-  type = list(string)
+variable "node_desired_size" {
+  default = 2
 }
 
-variable "private_subnet_ids" {
-  type = list(string)
+variable "node_min_size" {
+  default = 1
+}
+
+variable "node_max_size" {
+  default = 3
 }
 
 variable "db_name" {

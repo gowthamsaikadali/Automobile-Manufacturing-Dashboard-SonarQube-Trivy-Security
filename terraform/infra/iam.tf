@@ -120,27 +120,21 @@ resource "aws_iam_role_policy_attachment" "cicd_attach" {
 ########################################
 # 3. Application pod role (IRSA) - read-only access to ONE secret
 ########################################
-# Pass this in from the k8s stage's output, e.g.
-#   data.terraform_remote_state.k8s.outputs.oidc_provider_arn
-variable "eks_oidc_provider_arn" {
-  description = "OIDC provider ARN of the autoforge-eks cluster (from k8s stage output)"
-  type        = string
-  default     = ""
-}
+# Wired automatically to the OIDC provider created in eks.tf - since this
+# is all one Terraform stage now, no manual ARN needs to be passed in.
 
 resource "aws_iam_role" "app_pod_role" {
-  count = var.eks_oidc_provider_arn != "" ? 1 : 0
-  name  = "${var.project}-app-pod-role"
+  name = "${var.project}-app-pod-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { Federated = var.eks_oidc_provider_arn }
+      Principal = { Federated = aws_iam_openid_connect_provider.eks.arn }
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = {
-          "${replace(var.eks_oidc_provider_arn, "/^.*oidc-provider//", "")}:sub" = "system:serviceaccount:autoforge:autoforge-app-sa"
+          "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" = "system:serviceaccount:autoforge:autoforge-app-sa"
         }
       }
     }]
@@ -155,13 +149,16 @@ resource "aws_iam_policy" "app_secrets_read" {
       Sid      = "ReadOnlyOneSecret"
       Effect   = "Allow"
       Action   = ["secretsmanager:GetSecretValue"]
-      Resource = aws_secretsmanager_secret.rds_credentials.arn
+      Resource = [
+        aws_secretsmanager_secret.rds_credentials.arn,
+        aws_secretsmanager_secret.flask_secret_key.arn,
+        aws_secretsmanager_secret.admin_bootstrap.arn
+      ]
     }]
   })
 }
 
 resource "aws_iam_role_policy_attachment" "app_pod_attach" {
-  count      = var.eks_oidc_provider_arn != "" ? 1 : 0
-  role       = aws_iam_role.app_pod_role[0].name
+  role       = aws_iam_role.app_pod_role.name
   policy_arn = aws_iam_policy.app_secrets_read.arn
 }

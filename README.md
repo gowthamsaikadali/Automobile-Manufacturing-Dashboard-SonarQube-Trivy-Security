@@ -97,12 +97,22 @@ docker --version
 ```
 
 You'll need: an AWS account with admin access to bootstrap the roles
-below, an EKS cluster (`autoforge-eks` is the name this bundle expects —
-change `eks_cluster_name` in `variables.tf` if yours differs) with its
-VPC/subnets already created, and GitHub OIDC federation for the repo
-(Terraform creates the *role*; you set up the OIDC *provider* once per
-AWS account if you haven't already — see `data.aws_iam_openid_connect_provider.github`
-in `iam.tf`, which assumes it exists).
+below, and GitHub OIDC federation set up once per AWS account (Terraform
+creates the *role* in Step 3; the OIDC *provider* itself — trusting
+`token.actions.githubusercontent.com` — needs to exist first; see
+"One-time: GitHub OIDC provider" below).
+
+**You do not need an existing VPC, subnets, or EKS cluster** — Terraform
+builds all of that from scratch in Step 3 (`network.tf` + `eks.tf`).
+
+### One-time: GitHub OIDC provider (skip if your AWS account already has one)
+```powershell
+aws iam create-open-id-connect-provider `
+  --url https://token.actions.githubusercontent.com `
+  --client-id-list sts.amazonaws.com `
+  --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
+```
+If this already exists you'll get an `EntityAlreadyExists` error — that's fine, it means you're set.
 
 ---
 
@@ -136,14 +146,21 @@ python seed.py   # requires ADMIN_USERNAME/ADMIN_PASSWORD env vars too
 
 ---
 
-## Step 3. Terraform — provision ECR, RDS, IAM, Secrets Manager, ACM, WAF
+## Step 3. Terraform — provision VPC, EKS, ECR, RDS, IAM, Secrets Manager, ACM, WAF
+
+Everything in this step is built from nothing — no existing VPC, subnets,
+or cluster required.
+
+**Cost note**: this creates real billable resources — the EKS control
+plane alone is ~$0.10/hr (~$73/mo) regardless of usage, plus 2×
+`t3.small` nodes and a `db.t3.micro` RDS instance. Run `terraform destroy`
+when you're done experimenting to avoid ongoing charges.
 
 ```powershell
 cd terraform/infra
 ```
 
 Set these `-var` flags (or edit `variables.tf` defaults):
-- `vpc_id`, `public_subnet_ids`, `private_subnet_ids` — from your EKS cluster's VPC
 - `tf_state_bucket_name`, `tf_lock_table_name` — the two values from Step 0
 - `domain_name` — **leave this blank for now** (the default). You don't
   have a domain yet, so `acm.tf` skips creating a certificate entirely
@@ -156,17 +173,24 @@ terraform init `
   -backend-config="dynamodb_table=<lock_table_name from Step 0>"
 
 terraform plan -out=tfplan `
-  -var="vpc_id=<your-vpc-id>" `
-  -var="public_subnet_ids=[\"subnet-aaa\",\"subnet-bbb\"]" `
-  -var="private_subnet_ids=[\"subnet-ccc\",\"subnet-ddd\"]" `
   -var="tf_state_bucket_name=<state_bucket_name>" `
   -var="tf_lock_table_name=<lock_table_name>"
 
 terraform apply tfplan
 ```
 
-This creates, among other things:
-- `aws_ecr_repository.app` — a fresh, scan-on-push ECR repo (no manual creation needed)
+Grab a coffee — an EKS cluster + node group takes **10–15 minutes** to
+come up. This creates, among other things:
+- `aws_vpc.main` + 2 public subnets (EKS nodes, no NAT Gateway — saves
+  ~$32/mo) + 2 private subnets (RDS only, no internet route needed)
+- `aws_eks_cluster.main` — the EKS control plane (`autoforge-eks` by
+  default; change `eks_cluster_name` in `variables.tf` if you want a
+  different name)
+- `aws_eks_node_group.main` — 2× `t3.small` worker nodes (adjust via
+  `node_instance_type` / `node_desired_size`)
+- `aws_iam_openid_connect_provider.eks` — enables IRSA (IAM Roles for
+  Service Accounts), wired automatically into the app pod role
+- `aws_ecr_repository.app` — a fresh, scan-on-push ECR repo
 - `aws_secretsmanager_secret.rds_credentials` — the ONLY place DB creds live
 - `aws_db_instance.mysql` — private-subnet-only, encrypted, TLS-required
 - `aws_iam_role.eks_node_role` / `cicd_role` / `app_pod_role` — three
@@ -175,10 +199,17 @@ This creates, among other things:
 - `aws_acm_certificate.autoforge` — **skipped** while `domain_name` is blank
 - `aws_wafv2_web_acl.autoforge` — SQLi/XSS managed rules + rate limiting (works with or without a domain)
 
-Grab the outputs — you'll need these in Step 5 and Step 6:
+Point `kubectl`/`helm` at the new cluster:
+```powershell
+aws eks update-kubeconfig --name (terraform output -raw eks_cluster_name) --region ap-south-1
+kubectl get nodes   # should show 2 nodes, Ready, after a couple minutes
+```
+
+Grab the rest of the outputs — you'll need these in Step 5 and Step 6:
 ```powershell
 terraform output ecr_repository_url
 terraform output cicd_role_arn
+terraform output app_pod_role_arn
 terraform output waf_web_acl_arn
 ```
 
