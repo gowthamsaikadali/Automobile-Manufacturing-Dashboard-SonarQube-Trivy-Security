@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - AutoForge{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="page-sub">Automobile Manufacturing Unit Dashboard</p>
+  </div>
+  <div class="user-badge">
+    <div>{{ session.get('user', 'admin') }}</div>
+    <div class="year">{{ year }}</div>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Materials Produced</div>
+    <div class="stat-value">{{ stats.total_produced }}</div>
+    <span class="pill pill-green">Production Output</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Materials Assembled</div>
+    <div class="stat-value">{{ stats.total_assembled }}</div>
+    <span class="pill pill-blue">Assembly Status</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Materials Delivered</div>
+    <div class="stat-value">{{ stats.total_delivered }}</div>
+    <span class="pill pill-blue">Delivery Output</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending Assembly Count</div>
+    <div class="stat-value">{{ stats.pending_assembly }}</div>
+    <span class="pill pill-amber">Action Needed</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending Delivery Count</div>
+    <div class="stat-value">{{ stats.pending_delivery }}</div>
+    <span class="pill pill-red">Dispatch Queue</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Material Types</div>
+    <div class="stat-value">{{ stats.material_types }}</div>
+    <span class="pill pill-blue">Catalog Coverage</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Daily Production Count</div>
+    <div class="stat-value">{{ stats.daily_count }}</div>
+    <span class="pill pill-green">Today</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Monthly Production Count</div>
+    <div class="stat-value">{{ stats.monthly_count }}</div>
+    <span class="pill pill-blue">This Month</span>
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="chart-card">
+    <h3>Daily Production Trend</h3>
+    <p class="chart-sub">Produced quantities over the last 7 days</p>
+    <canvas id="trendChart" height="180"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Delivered vs Assembled</h3>
+    <p class="chart-sub">Overall output comparison</p>
+    <canvas id="pieChart" height="180"></canvas>
+  </div>
+</div>
+
+<script>
+  const trendCtx = document.getElementById('trendChart');
+  new Chart(trendCtx, {
+    type: 'line',
+    data: {
+      labels: {{ stats.trend_labels | tojson }},
+      datasets: [{
+        label: 'Produced',
+        data: {{ stats.trend_values | tojson }},
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.15)',
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: { plugins: { legend: { display: true } } }
+  });
+
+  const pieCtx = document.getElementById('pieChart');
+  new Chart(pieCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Assembled', 'Delivered'],
+      datasets: [{
+        data: [{{ stats.total_assembled }}, {{ stats.total_delivered }}],
+        backgroundColor: ['#22c55e', '#f59e0b']
+      }]
+    }
+  });
+</script>
+{% endblock %}
