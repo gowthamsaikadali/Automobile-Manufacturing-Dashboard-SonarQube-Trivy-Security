@@ -1,0 +1,45 @@
+{{- if .Values.networkPolicy.enabled }}
+# 1. Default-deny all ingress/egress in the namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# 2. Allow the ALB (via the ingress-controller-managed target group /
+#    same-VPC traffic) to reach the app pods on the app port, and allow
+#    the app pods to reach RDS (3306) + DNS + AWS APIs (443) only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: autoforge-app-policy
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: autoforge
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from: []   # ALB targets pods directly via IP mode; restrict further
+                  # with an ipBlock for your VPC CIDR if you want to be stricter
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.targetPort }}
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 3306   # RDS MySQL
+        - protocol: TCP
+          port: 443    # AWS Secrets Manager / STS / ECR endpoints
+{{- end }}
