@@ -1,0 +1,24 @@
+# Dev overrides. Deliberately contains NO db host/user/password keys -
+# that's what caused the empty-env-var bug previously. Only non-secret,
+# environment-specific values belong in this file.
+replicaCount: 1
+
+# serviceAccount.roleArn intentionally omitted here - it's account-specific.
+# Pass it via --set serviceAccount.roleArn=... at deploy time (see README
+# Step 5 and the CI/CD workflow, which pulls it from a GitHub Actions
+# repo variable).
+
+ingress:
+  host: ""   # no domain yet - reachable via the ALB's own DNS name; set this once you have one
+
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 250m
+    memory: 192Mi
