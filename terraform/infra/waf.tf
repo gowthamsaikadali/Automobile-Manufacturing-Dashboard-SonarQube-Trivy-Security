@@ -1,6 +1,6 @@
 resource "aws_wafv2_web_acl" "autoforge" {
   name        = "${var.project}-waf"
-  description = "Blocks common web attacks (SQLi, XSS) in front of the AutoForge ALB"
+  description = "Blocks common web attacks SQLi, XSS in front of the AutoForge ALB"
   scope       = "REGIONAL" # use CLOUDFRONT if fronted by CloudFront instead of ALB
 
   default_action {

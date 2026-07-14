@@ -1,0 +1,9 @@
+venv/
+\_\_pycache\_\_/
+\*.pyc
+.env
+.terraform/
+\*.tfstate
+\*.tfstate.backup
+tfplan
+values-local.yaml
