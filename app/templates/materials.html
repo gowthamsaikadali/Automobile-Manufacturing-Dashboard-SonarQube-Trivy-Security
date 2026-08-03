@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Materials - Auto Unit{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Materials</h1>
+    <p class="page-sub">All raw materials in the catalog</p>
+  </div>
+  <a href="{{ url_for('add_material') }}" class="btn-primary btn-inline">+ Add Material</a>
+</div>
+
+<table class="data-table">
+  <thead>
+    <tr><th>Name</th><th>Category</th><th>Quantity</th><th>Unit</th><th>Added</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for m in materials %}
+    <tr>
+      <td>{{ m.name }}</td>
+      <td>{{ m.category }}</td>
+      <td>{{ m.quantity }}</td>
+      <td>{{ m.unit or '-' }}</td>
+      <td>{{ m.created_at }}</td>
+      <td>
+        <form method="POST" action="{{ url_for('delete_material', material_id=m.id) }}"
+              onsubmit="return confirm('Delete {{ m.name }}?');">
+          <button type="submit" class="btn-danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="empty">No materials yet. Add your first one.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

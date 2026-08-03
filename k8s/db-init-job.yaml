@@ -1,0 +1,23 @@
+# One-time Job that calls init_db() from db.py to create tables + seed the
+# admin user. RDS is private (publicly_accessible=false), so this can't be
+# run from your laptop -- it has to run from inside the cluster, same
+# network as the app pods. Delete and re-run (`kubectl delete job db-init`)
+# if you ever need to re-seed.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init
+  namespace: automobile-app
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: automobile-app-sa
+      restartPolicy: Never
+      containers:
+        - name: db-init
+          image: <ECR_REPO_URI>:<IMAGE_TAG> # same image as deployment.yaml
+          command: ["python", "-c", "from db import init_db; init_db(); print('schema ready')"]
+          envFrom:
+            - secretRef:
+                name: app-credentials
