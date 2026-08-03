@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Reports - Auto Unit{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Reports</h1>
+    <p class="page-sub">Daily production vs assembly, last 30 days</p>
+  </div>
+</div>
+
+<table class="data-table">
+  <thead><tr><th>Date</th><th>Produced</th><th>Assembled</th></tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.log_date }}</td>
+      <td>{{ r.produced }}</td>
+      <td>{{ r.assembled }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3" class="empty">No report data yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

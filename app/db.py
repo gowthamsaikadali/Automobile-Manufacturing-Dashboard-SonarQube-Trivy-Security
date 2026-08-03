@@ -1,76 +1,96 @@
 """
-Database access layer.
+Database connection helper.
 
-Credentials are read ONLY from environment variables. In production those
-env vars are populated by the AWS Secrets Store CSI Driver (mounted secret
-files) or by External Secrets Operator syncing from AWS Secrets Manager into
-a native Kubernetes Secret. Nothing here ever contains a literal password.
+CRITICAL SECURITY NOTE:
+All connection parameters come from environment variables. Those env vars
+are populated in the pod spec from a Kubernetes Secret, which is itself
+synced from AWS Secrets Manager by the External Secrets Operator. Nothing
+here is ever hardcoded, and nothing here is ever committed to git.
+See k8s/deployment.yaml + k8s/external-secret.yaml.
 """
+
 import os
-import pymysql
-from pymysql.cursors import DictCursor
+import mysql.connector
+from werkzeug.security import generate_password_hash
 
 
-def _read_secret(env_name: str, file_env_name: str) -> str:
-    """
-    Support two secret-delivery styles:
-    1) Secrets Store CSI driver mounts each secret as a file; the path is
-       given by *_FILE env vars (preferred - value never lands in `env`,
-       reducing exposure via `kubectl describe pod` / process listing).
-    2) External Secrets Operator injects the value directly as an env var.
-    """
-    file_path = os.environ.get(file_env_name)
-    if file_path and os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as fh:
-            return fh.read().strip()
-    return os.environ[env_name]
-
-
-def get_connection():
-    host = _read_secret("DB_HOST", "DB_HOST_FILE")
-    user = _read_secret("DB_USER", "DB_USER_FILE")
-    password = _read_secret("DB_PASSWORD", "DB_PASSWORD_FILE")
-    name = _read_secret("DB_NAME", "DB_NAME_FILE")
-
-    return pymysql.connect(
-        host=host,
-        user=user,
-        password=password,
-        database=name,
-        port=int(os.environ.get("DB_PORT", 3306)),
-        cursorclass=DictCursor,
-        ssl={"ssl": {}},  # enforce TLS to RDS
-        connect_timeout=5,
+def get_db_connection():
+    return mysql.connector.connect(
+        host=os.environ["DB_HOST"],
+        port=int(os.environ.get("DB_PORT", "3306")),
+        user=os.environ["DB_USER"],
+        password=os.environ["DB_PASSWORD"],
+        database=os.environ["DB_NAME"],
+        ssl_disabled=False,  # enforce TLS to RDS
     )
 
 
 def init_db():
-    """Idempotent bootstrap - safe to run on every pod start."""
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
+    """
+    Idempotent schema creation + a default admin user, seeded from
+    ADMIN_USERNAME / ADMIN_PASSWORD env vars (also Secrets-Manager-backed).
+    This mirrors what k8s/db-init-job.yaml runs once inside the cluster.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS admins (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(64) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS materials (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(128) NOT NULL,
+            category VARCHAR(64) NOT NULL,
+            quantity INT NOT NULL DEFAULT 0,
+            unit VARCHAR(32),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS production_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            material_id INT NOT NULL,
+            quantity_produced INT NOT NULL DEFAULT 0,
+            quantity_assembled INT NOT NULL DEFAULT 0,
+            log_date DATE NOT NULL,
+            FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS deliveries (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            material_id INT NOT NULL,
+            quantity_delivered INT NOT NULL DEFAULT 0,
+            status VARCHAR(32) NOT NULL DEFAULT 'pending',
+            delivered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+        )
+        """
+    )
+
+    admin_user = os.environ.get("ADMIN_USERNAME")
+    admin_pass = os.environ.get("ADMIN_PASSWORD")
+    if admin_user and admin_pass:
+        cur.execute("SELECT id FROM admins WHERE username = %s", (admin_user,))
+        if cur.fetchone() is None:
             cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS admins (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(64) UNIQUE NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL
-                )
-                """
+                "INSERT INTO admins (username, password_hash) VALUES (%s, %s)",
+                (admin_user, generate_password_hash(admin_pass)),
             )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS materials (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    material_type VARCHAR(64) NOT NULL,
-                    quantity INT NOT NULL DEFAULT 0,
-                    status ENUM('produced','assembled','delivered',
-                                'pending_assembly','pending_delivery')
-                                NOT NULL DEFAULT 'produced',
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
-        conn.commit()
-    finally:
-        conn.close()
+
+    conn.commit()
+    cur.close()
+    conn.close()

@@ -1,23 +1,21 @@
-# ---- Build stage ----
+# ---- build stage ----
 FROM python:3.12-slim AS builder
-
 WORKDIR /build
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-# ---- Final stage ----
+# ---- final stage ----
 FROM python:3.12-slim
+LABEL maintainer="auto-unit-devsecops"
 
-# Security patches for the base image (keeps Trivy OS-package findings low)
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
-
-# Non-root user (Trivy/kube-bench flag containers that run as root)
+# Create a non-root user -- containers must never run as root (Trivy/CIS check)
 RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
 
 WORKDIR /app
 COPY --from=builder /root/.local /home/appuser/.local
-COPY --chown=appuser:appuser . .
+COPY . .
 
+RUN chown -R appuser:appuser /app
 ENV PATH=/home/appuser/.local/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -25,8 +23,6 @@ ENV PATH=/home/appuser/.local/bin:$PATH \
 USER appuser
 EXPOSE 5000
 
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import urllib.request as u; u.urlopen('http://localhost:5000/health')" || exit 1
+HEALTHCHECK --interval=30s --timeout=3s CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/healthz')" || exit 1
 
-# gunicorn, not the Flask dev server, for production
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "3", "--timeout", "60", "app:app"]

@@ -1,0 +1,92 @@
+name: Build, Scan, and Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write   # required for OIDC -- no long-lived AWS keys in this repo
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPO: ${{ secrets.ECR_REPOSITORY_URI }}   # set as a GitHub repo secret (not an AWS key -- just the URI)
+  EKS_CLUSTER: automobile-project-dev
+
+jobs:
+  sonarqube:
+    name: Static code analysis (SonarQube)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      - name: Quality Gate check
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        # Pipeline fails here if the quality gate fails -- deploy job below
+        # never runs on a broken/insecure build.
+
+  build-and-scan:
+    name: Build image and scan with Trivy
+    needs: sonarqube
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CICD_ROLE_ARN }} # arn from terraform output, cicd_role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        run: |
+          docker build -t $ECR_REPO:${{ github.sha }} ./app
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.ECR_REPO }}:${{ github.sha }}"
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 1        # fail the build on CRITICAL/HIGH CVEs
+          ignore-unfixed: true
+
+      - name: Push image (only if scan passed)
+        run: |
+          docker push $ECR_REPO:${{ github.sha }}
+
+  deploy:
+    name: Deploy to EKS
+    needs: build-and-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CICD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
+
+      - name: Set image and roll out
+        run: |
+          kubectl set image deployment/automobile-app \
+            automobile-app=$ECR_REPO:${{ github.sha }} \
+            -n automobile-app
+          kubectl rollout status deployment/automobile-app -n automobile-app --timeout=120s

@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: automobile-app
+  namespace: automobile-app
+  labels:
+    app: automobile-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: automobile-app
+  template:
+    metadata:
+      labels:
+        app: automobile-app
+    spec:
+      serviceAccountName: automobile-app-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: automobile-app
+          image: <ECR_REPO_URI>:<IMAGE_TAG> # set by CI/CD, never :latest
+          ports:
+            - containerPort: 5000
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          envFrom:
+            - secretRef:
+                name: app-credentials # created by ExternalSecret, see external-secret.yaml
+          env:
+            - name: FORCE_SECURE_COOKIES
+              value: "true"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet: { path: /healthz, port: 5000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 5000 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp # writable scratch dir since rootfs is read-only
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: automobile-app-svc
+  namespace: automobile-app
+spec:
+  selector:
+    app: automobile-app
+  ports:
+    - port: 80
+      targetPort: 5000
+  type: ClusterIP

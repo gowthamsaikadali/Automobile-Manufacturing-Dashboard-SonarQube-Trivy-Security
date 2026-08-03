@@ -1,0 +1,101 @@
+# =============================================================================
+# NETWORK POLICIES
+# Default-deny everything in the namespace, then explicitly allow only the
+# traffic the app actually needs:
+#   - Ingress: from the ALB/Ingress controller into the app pods, port 5000
+#   - Egress: from the app pods to RDS (port 3306) and to AWS APIs (443)
+#   - DNS is allowed separately since CoreDNS lookups are needed for both
+# Requires a CNI that enforces NetworkPolicy (the AWS VPC CNI does, as of
+# the version installed with EKS add-ons in this project).
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: automobile-app
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: automobile-app
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-alb
+  namespace: automobile-app
+spec:
+  podSelector:
+    matchLabels:
+      app: automobile-app
+  policyTypes: ["Ingress"]
+  ingress:
+    - from: [] # ALB targets pods directly via IP mode; scope tightened
+                # further via SG-for-pods if you enable that feature.
+      ports:
+        - protocol: TCP
+          port: 5000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-rds-and-aws-apis
+  namespace: automobile-app
+spec:
+  podSelector:
+    matchLabels:
+      app: automobile-app
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/16 # your VPC CIDR -- covers RDS in the private subnets
+      ports:
+        - protocol: TCP
+          port: 3306
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0 # AWS Secrets Manager / STS endpoints (public API, over TLS)
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# External Secrets Operator's own namespace needs egress to Secrets Manager
+# too -- separate policy since it runs outside automobile-app namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-secrets-egress
+  namespace: external-secrets
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
