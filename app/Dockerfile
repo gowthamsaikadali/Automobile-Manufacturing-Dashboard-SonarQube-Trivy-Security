@@ -2,7 +2,11 @@
 FROM python:3.12-slim AS builder
 WORKDIR /build
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+# --prefix installs to a fixed path, independent of $HOME or which user
+# runs the container -- avoids the --user/$HOME mismatch that broke the
+# original build (packages installed under one user's home, container ran
+# as a different user with a different home, ModuleNotFoundError at runtime).
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ---- final stage ----
 FROM python:3.12-slim
@@ -12,12 +16,13 @@ LABEL maintainer="auto-unit-devsecops"
 RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
 
 WORKDIR /app
-COPY --from=builder /root/.local /home/appuser/.local
+# /usr/local is on Python's default sys.path regardless of which user runs
+# the process -- no $HOME dependency, unlike the old --user approach.
+COPY --from=builder /install /usr/local
 COPY . .
 
 RUN chown -R appuser:appuser /app
-ENV PATH=/home/appuser/.local/bin:$PATH \
-    PYTHONDONTWRITEBYTECODE=1 \
+ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 USER appuser
