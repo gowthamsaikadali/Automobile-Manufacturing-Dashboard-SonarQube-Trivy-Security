@@ -30,6 +30,7 @@ jobs:
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
         # Pipeline fails here if the quality gate fails -- deploy job below
         # never runs on a broken/insecure build.
 
