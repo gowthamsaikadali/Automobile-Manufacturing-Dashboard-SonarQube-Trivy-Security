@@ -13,12 +13,13 @@ module "eks" {
   # Grants YOUR terraform-apply identity admin automatically, plus anyone
   # listed in additional_admin_arns -- this is what avoids the "console
   # login can't see the cluster" issue from earlier iterations.
-  authentication_mode = "API_AND_CONFIG_MAP"
+    authentication_mode                      = "API_AND_CONFIG_MAP"
   enable_cluster_creator_admin_permissions = true
 
   access_entries = merge(
     {
-      for idx, arn in var.additional_admin_arns : "admin-${idx}" => {
+      for idx, arn in tolist(setsubtract(var.additional_admin_arns, [data.aws_caller_identity.current.arn])) :
+      "admin-${idx}" => {
         principal_arn = arn
         policy_associations = {
           admin = {
@@ -50,9 +51,9 @@ module "eks" {
   cluster_addons = {
     coredns                = {}
     kube-proxy              = {}
-    vpc-cni = {
+     vpc-cni = {
       configuration_values = jsonencode({
-        env = { ENABLE_NETWORK_POLICY = "true" } # required for k8s/networkpolicy.yaml to actually be enforced
+        enableNetworkPolicy = "true" # required for k8s/networkpolicy.yaml to actually be enforced
       })
     }
     aws-ebs-csi-driver = {
