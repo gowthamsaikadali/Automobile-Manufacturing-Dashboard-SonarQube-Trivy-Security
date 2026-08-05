@@ -42,7 +42,7 @@ resource "aws_db_instance" "app_db" {
   publicly_accessible    = false # deliberate -- only reachable from inside the cluster, see README Part 6 for how schema init runs
 
   multi_az                = false # single-AZ keeps cost down for a portfolio project; flip to true for real HA
-  backup_retention_period = 1
+  backup_retention_period = 0
   skip_final_snapshot     = true # avoids a stuck snapshot blocking teardown during iteration cycles
   deletion_protection     = false
 }
