@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Auto Unit{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="page-sub">Automobile Manufacturing Unit Dashboard</p>
+  </div>
+  <div class="admin-badge">admin<br><span>{{ year }}</span></div>
+</div>
+
+<div class="card-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Materials Produced</div>
+    <div class="stat-value">{{ stats.total_produced }}</div>
+    <span class="tag tag-green">Production Output</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Materials Assembled</div>
+    <div class="stat-value">{{ stats.total_assembled }}</div>
+    <span class="tag tag-blue">Assembly Status</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Materials Delivered</div>
+    <div class="stat-value">{{ stats.total_delivered }}</div>
+    <span class="tag tag-blue">Delivery Output</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending Assembly Count</div>
+    <div class="stat-value">{{ stats.pending_assembly }}</div>
+    <span class="tag tag-orange">Action Needed</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Pending Delivery Count</div>
+    <div class="stat-value">{{ stats.pending_delivery }}</div>
+    <span class="tag tag-red">Dispatch Queue</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Material Types</div>
+    <div class="stat-value">{{ stats.material_types }}</div>
+    <span class="tag tag-gray">Catalog Coverage</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Daily Production Count</div>
+    <div class="stat-value">{{ stats.daily_production }}</div>
+    <span class="tag tag-green">Today</span>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Monthly Production Count</div>
+    <div class="stat-value">{{ stats.monthly_production }}</div>
+    <span class="tag tag-blue">This Month</span>
+  </div>
+</div>
+
+<div class="chart-grid">
+  <div class="chart-card">
+    <h3>Daily Production Trend</h3>
+    <p class="page-sub">Produced quantities over the last 7 days</p>
+    <ul class="mini-table">
+      {% for row in trend %}
+        <li><span>{{ row.log_date }}</span><span>{{ row.produced }}</span></li>
+      {% else %}
+        <li class="empty">No production data yet</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="chart-card">
+    <h3>Delivered vs Assembled</h3>
+    <p class="page-sub">Overall output comparison</p>
+    <ul class="mini-table">
+      <li><span>Assembled</span><span>{{ stats.total_assembled }}</span></li>
+      <li><span>Delivered</span><span>{{ stats.total_delivered }}</span></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
