@@ -10,10 +10,12 @@ module "eks" {
 
   cluster_endpoint_public_access = true # keep true for kubectl-from-laptop access during a portfolio project
 
-  # Grants YOUR terraform-apply identity admin automatically, plus anyone
-  # listed in additional_admin_arns -- this is what avoids the "console
-  # login can't see the cluster" issue from earlier iterations.
-    authentication_mode                      = "API_AND_CONFIG_MAP"
+  # Grants YOUR terraform-apply identity admin automatically. Anyone ELSE
+  # listed in additional_admin_arns gets an access entry too -- but if your
+  # own ARN is also in that list (common, since you're usually both the
+  # apply identity and the person who wants console/kubectl access), it's
+  # filtered out here to avoid a duplicate "ResourceInUseException".
+  authentication_mode                      = "API_AND_CONFIG_MAP"
   enable_cluster_creator_admin_permissions = true
 
   access_entries = merge(
@@ -51,7 +53,7 @@ module "eks" {
   cluster_addons = {
     coredns                = {}
     kube-proxy              = {}
-     vpc-cni = {
+    vpc-cni = {
       configuration_values = jsonencode({
         enableNetworkPolicy = "true" # required for k8s/networkpolicy.yaml to actually be enforced
       })

@@ -82,6 +82,35 @@ Write these down somewhere — you'll need them again any time you re-run
 
 ## Part 2 — Initialize the main infrastructure project
 
+**If this is a new PowerShell window** (different from the one you ran Part
+1 in), `$STATE_BUCKET` and `$LOCK_TABLE` won't exist — PowerShell variables
+don't persist across sessions. Re-derive them first:
+
+```powershell
+cd ..\bootstrap
+$STATE_BUCKET = terraform output -raw state_bucket_name
+$LOCK_TABLE   = terraform output -raw lock_table_name
+```
+
+If even the bootstrap state is gone from this machine (e.g. you're on a
+different laptop), look them up directly from AWS instead:
+
+```powershell
+$STATE_BUCKET = (aws s3api list-buckets --query "Buckets[?starts_with(Name,'automobile-project-tfstate')].Name" --output text)
+$LOCK_TABLE   = "automobile-project-tfstate-lock"
+```
+
+Then check both actually have a value before continuing — an empty
+`-backend-config` value is exactly what caused `The value cannot be empty
+or all whitespace`:
+
+```powershell
+Write-Host "Bucket: [$STATE_BUCKET]"
+Write-Host "Lock table: [$LOCK_TABLE]"
+```
+
+Now initialize:
+
 ```powershell
 cd ..\terraform
 terraform init `
@@ -91,6 +120,12 @@ terraform init `
   -backend-config="dynamodb_table=$LOCK_TABLE" `
   -backend-config="encrypt=true"
 ```
+
+You may see a `Warning: Deprecated Parameter — "dynamodb_table" is
+deprecated. Use parameter "use_lockfile" instead.` That's just a warning
+about a newer AWS provider feature (S3-native locking) — it does not block
+`init`, and since this project deliberately uses DynamoDB for locking,
+you can ignore it.
 
 ---
 

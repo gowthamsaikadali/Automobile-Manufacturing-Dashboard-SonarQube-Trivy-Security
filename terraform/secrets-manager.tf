@@ -81,11 +81,22 @@ resource "aws_iam_role_policy" "external_secrets_read_only" {
   role = aws_iam_role.external_secrets_irsa.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-      Resource = aws_secretsmanager_secret.app_secrets.arn
-    }]
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+        Resource = aws_secretsmanager_secret.app_secrets.arn
+      },
+      {
+        # Required in addition to the above -- the secret is encrypted with
+        # a customer-managed KMS key (not the AWS-managed default), so
+        # reading its VALUE (not just metadata) needs an explicit Decrypt
+        # grant on that key too.
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:DescribeKey"]
+        Resource = aws_kms_key.secrets_key.arn
+      }
+    ]
   })
 }
 

@@ -39,6 +39,17 @@ def login_required(f):
     return wrapped
 
 
+# ------------------------------------------------------------------- root ---
+@app.route("/")
+def index():
+    # No route was defined for "/" itself -- visiting the bare ALB URL
+    # (or your own domain root, later) 404'd even though every other page
+    # worked fine. Send people somewhere useful instead.
+    if "user_id" in session:
+        return redirect(url_for("dashboard"))
+    return redirect(url_for("login"))
+
+
 # ---------------------------------------------------------------- health ---
 @app.route("/healthz")
 def healthz():

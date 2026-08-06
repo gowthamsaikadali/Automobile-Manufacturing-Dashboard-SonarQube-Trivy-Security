@@ -36,8 +36,15 @@ spec:
             - secretRef:
                 name: app-credentials # created by ExternalSecret, see external-secret.yaml
           env:
+            # This deployment is plain HTTP (no domain/ACM cert configured --
+            # see terraform/acm-https.tf history). A cookie marked Secure can
+            # only be stored by the browser over HTTPS, so leaving this
+            # "true" silently breaks every login: the session cookie never
+            # gets saved client-side, and every request after login bounces
+            # back to /login with no visible error. Flip this to "true" only
+            # once you've added a domain + HTTPS on the Ingress.
             - name: FORCE_SECURE_COOKIES
-              value: "true"
+              value: "false"
           resources:
             requests:
               cpu: "100m"
