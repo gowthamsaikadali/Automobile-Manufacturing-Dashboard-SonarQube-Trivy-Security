@@ -61,7 +61,7 @@ variable "github_repo" {
 
 variable "sonarqube_instance_type" {
   description = "EC2 instance size for the self-hosted SonarQube server"
-  default     = "t3.medium" # 4GB RAM -- below this, Elasticsearch (bundled) struggles
+  default     = "c7i-flex.large" # *GB RAM -- below this, Elasticsearch (bundled) struggles
 }
 
 variable "sonarqube_allowed_cidrs" {

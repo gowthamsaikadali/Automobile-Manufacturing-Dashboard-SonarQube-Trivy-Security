@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: automobile-app
-          image: 762131619075.dkr.ecr.ap-south-1.amazonaws.com/automobile-project:v3 # set by CI/CD, never :latest
+          image: 762131619075.dkr.ecr.ap-south-1.amazonaws.com/automobile-project:v1 # set by CI/CD, never :latest
           ports:
             - containerPort: 5000
           securityContext:

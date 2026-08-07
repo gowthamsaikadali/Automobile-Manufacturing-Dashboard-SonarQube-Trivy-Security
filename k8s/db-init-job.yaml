@@ -16,7 +16,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: db-init
-          image: 762131619075.dkr.ecr.ap-south-1.amazonaws.com/automobile-project:v2 # same image as deployment.yaml
+          image: 762131619075.dkr.ecr.ap-south-1.amazonaws.com/automobile-project:v1 # same image as deployment.yaml
           command: ["python", "-c", "from db import init_db; init_db(); print('schema ready')"]
           envFrom:
             - secretRef:
