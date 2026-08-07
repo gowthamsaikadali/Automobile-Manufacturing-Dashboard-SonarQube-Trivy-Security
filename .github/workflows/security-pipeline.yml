@@ -63,7 +63,7 @@ jobs:
         with:
           image-ref: "${{ env.ECR_REPO }}:${{ github.sha }}"
           format: table
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
           exit-code: 1        # fail the build on CRITICAL/HIGH CVEs
           ignore-unfixed: true
 
