@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login - Auto Unit</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <div class="brand-icon large">AM</div>
+    <h1>Admin Login</h1>
+    <p class="login-sub">Secure access to the automobile manufacturing dashboard</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-container">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('login') }}">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" placeholder="Enter admin username" required autocomplete="username">
+
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="Enter password" required autocomplete="current-password">
+
+      <div class="remember-row">
+        <input type="checkbox" id="remember_me" name="remember_me">
+        <label for="remember_me">Remember me</label>
+      </div>
+
+      <button type="submit" class="btn-primary">Sign In</button>
+    </form>
+  </div>
+</body>
+</html>

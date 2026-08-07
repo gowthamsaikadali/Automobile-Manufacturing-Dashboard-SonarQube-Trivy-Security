@@ -1,0 +1,70 @@
+# =============================================================================
+# RBAC
+# The app pods run under a ServiceAccount that can do nothing in the
+# Kubernetes API except read its own ConfigMaps/Secrets in its namespace --
+# it has no business talking to the API server otherwise, so no verbs beyond
+# get/list/watch are granted, and only in this namespace.
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: automobile-app
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: automobile-app-sa
+  namespace: automobile-app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: automobile-app-role
+  namespace: automobile-app
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: automobile-app-rolebinding
+  namespace: automobile-app
+subjects:
+  - kind: ServiceAccount
+    name: automobile-app-sa
+    namespace: automobile-app
+roleRef:
+  kind: Role
+  name: automobile-app-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Read-only viewer role for on-call/ops folks who need to see logs/status
+# but should never be able to edit or delete anything in this namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: automobile-app-viewer
+  namespace: automobile-app
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: automobile-app-viewer-binding
+  namespace: automobile-app
+subjects:
+  - kind: Group
+    name: "automobile-app-viewers" # map your IAM/EKS access-entry group here
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: automobile-app-viewer
+  apiGroup: rbac.authorization.k8s.io
